@@ -1,10 +1,12 @@
 #include "apue.h"
 #include <termios.h>
+#include <sys/types.h>
+#include <sys/wait.h>
 
 #ifdef LINUX
-#define OPTSTR "+d:einv"
+#define OPTSTR "+d:einvr"
 #else
-#define OPTSTR "d:einv"
+#define OPTSTR "d:einvr"
 #endif
 
 static void set_noecho (int);	/* at the end of this file */
@@ -14,7 +16,7 @@ void loop (int, int);		/* in the file loop.c */
 int
 main (int argc, char *argv[])
 {
-  int fdm, c, ignoreeof, interactive, noecho, verbose;
+  int fdm, c, ignoreeof, interactive, noecho, verbose, returncode, status;
   pid_t pid;
   char *driver;
   char slave_name[20];
@@ -26,6 +28,7 @@ main (int argc, char *argv[])
   noecho = 0;
   verbose = 0;
   driver = NULL;
+  returncode = 0;
 
   opterr = 0;			/* don't want getopt() writing to stderr */
   while ((c = getopt (argc, argv, OPTSTR)) != EOF)
@@ -50,6 +53,10 @@ main (int argc, char *argv[])
 
 	case 'v':		/* verbose */
 	  verbose = 1;
+	  break;
+
+	case 'r':
+	  returncode = 1;
 	  break;
 
 	case '?':
@@ -105,6 +112,17 @@ main (int argc, char *argv[])
     do_driver (driver);		/* changes our stdin/stdout */
 
   loop (fdm, ignoreeof);	/* copies stdin -> ptym, ptym -> stdout */
+
+  if (returncode)
+    {
+      if (waitpid (pid, &status, 0) < 0)
+	err_sys ("waitpid error");
+      if (WIFEXITED (status))
+	exit (WEXITSTATUS (status));
+      else
+	exit (EXIT_FAILURE);
+    }
+
 
   exit (0);
 }
